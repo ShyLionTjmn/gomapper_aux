@@ -362,7 +362,7 @@ L1:for s_pos < len(s) {
       if !regex_closed {
         return false, errors.New("Syntax error: no regex closing at "+strconv.Itoa(s_pos))
       }
-      if reg, err := regexp.Compile(regex_pattern); err != nil {
+      if reg, err := regexp.Compile("(?i:"+regex_pattern+")"); err != nil {
         return false, errors.New("Syntax error: regex compile error at "+strconv.Itoa(regex_start))
       } else {
         if op == "=~" {
