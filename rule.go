@@ -442,18 +442,63 @@ func resolveStack(a []interface{}) (bool, error) {
 
   for len(a) > 1 {
     if len(a) < 3 { return false, errors.New("Subexpression too short") }
-    if !isBool(a[0]) { return false, errors.New("Non bool start of subexpression") }
-    if isBool(a[1]) || (a[1].(string) != "&&" && a[1].(string) != "||") { return false, errors.New("Bool followed by wrong type") }
-    if !isBool(a[2]) && a[2].(string) != "(" { return false, errors.New("Second expression is not bool and not subexpression") }
+    if !isBool(a[0]) && a[0] != "(" { return false, errors.New("Non bool or \"(\" start of subexpression") }
+    if isBool(a[0]) {
+      if isBool(a[1]) || (a[1].(string) != "&&" && a[1].(string) != "||") { return false, errors.New("Bool followed by wrong type") }
+      if !isBool(a[2]) && a[2].(string) != "(" { return false, errors.New("Second expression is not bool and not subexpression") }
 
-    if !isBool(a[2]) { // a[2] == "("
+      if !isBool(a[2]) { // a[2] == "("
+        var i int
+        ////////////////////
+        //i  0    1  2 3   4
+        //   bool |& ( ... ) |& ( ... )
+        //   bool |& ( ( ...) |& bool )
+        open_par := 1
+        for i = 3; i < len(a); i++ {
+          if !isBool(a[i]) {
+            if a[i].(string) == ")" {
+              if open_par == 0 {
+                return false, errors.New("Should not get here")
+              }
+              open_par--
+              if open_par == 0 {
+                break
+              }
+            } else if a[i].(string) == "(" {
+              open_par++
+            }
+          }
+        }
+
+        if open_par > 0 { return false, errors.New("No closing ) found") }
+        sub := append([]interface{}{}, a[3:i]...)
+        sub_res, err := resolveStack(sub)
+        if err != nil { return false, err }
+        aa := append(a[:2], sub_res)
+        a = append(aa, a[i+1:]...)
+      } else {
+        /////////////////////////
+        //i  0    1   2
+        //   bool &|  bool
+        if a[1].(string) == "&&" {
+          res := a[0].(bool) && a[2].(bool)
+          aa := []interface{}{res}
+          a = append(aa, a[3:]...)
+        } else {
+          sub := append([]interface{}{}, a[2:]...)
+          sub_res, err := resolveStack(sub)
+          if err != nil { return false, err }
+          res := a[0].(bool) || sub_res
+          a = append([]interface{}{}, res)
+        }
+      }
+    } else { //non bool
       var i int
-      ////////////////////
-      //i  0    1  2 3   4
-      //   bool |& ( ... ) |& ( ... )
-      //   bool |& ( ( ...) |& bool )
+      ///////////////////
+      //i   0   1   2
+      //    (   .... 
       open_par := 1
-      for i = 3; i < len(a); i++ {
+      for i = 1; i < len(a); i++ {
         if !isBool(a[i]) {
           if a[i].(string) == ")" {
             if open_par == 0 {
@@ -470,26 +515,11 @@ func resolveStack(a []interface{}) (bool, error) {
       }
 
       if open_par > 0 { return false, errors.New("No closing ) found") }
-      sub := append([]interface{}{}, a[3:i]...)
+      sub := append([]interface{}{}, a[1:i]...)
       sub_res, err := resolveStack(sub)
       if err != nil { return false, err }
-      aa := append(a[:2], sub_res)
+      aa := []interface{}{sub_res}
       a = append(aa, a[i+1:]...)
-    } else {
-      /////////////////////////
-      //i  0    1   2
-      //   bool &|  bool
-      if a[1].(string) == "&&" {
-        res := a[0].(bool) && a[2].(bool)
-        aa := []interface{}{res}
-        a = append(aa, a[3:]...)
-      } else {
-        sub := append([]interface{}{}, a[2:]...)
-        sub_res, err := resolveStack(sub)
-        if err != nil { return false, err }
-        res := a[0].(bool) || sub_res
-        a = append([]interface{}{}, res)
-      }
     }
   }
   if len(a) != 1 { return false, errors.New("Bad resulting len") }
@@ -811,6 +841,5 @@ L1:for s_pos < len(s) {
     }
 
   }
-
   return resolveStack(stack)
 }
