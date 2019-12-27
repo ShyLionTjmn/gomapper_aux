@@ -649,7 +649,7 @@ L1:for s_pos < len(s) {
   return ret_s, nil
 }
 
-func MatchAlertRule(s string, alert M) (bool, error) {
+func MatchAlertRule(s string, alert map[string]string) (bool, error) {
   s_pos := 0
   par_open := 0
   and_or_started := false
@@ -678,7 +678,7 @@ L1:for s_pos < len(s) {
       op = s[s_pos+m[4]:s_pos+m[5]]
       s_pos += m[6] //at least 1 symbol left in string
 
-      cmp_value, _ = alert.Vse(key)
+      cmp_value, _ = alert[key]
     } else if s[s_pos] == '(' {
       stack = append(stack, "(")
       par_open++
@@ -814,4 +814,3 @@ L1:for s_pos < len(s) {
 
   return resolveStack(stack)
 }
-
