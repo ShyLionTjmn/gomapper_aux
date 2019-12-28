@@ -227,7 +227,7 @@ L1:for s_pos < len(s) {
     and_or_started = false
     op := ""
     key := ""
-    cmp_value := ""
+    var cmp_value interface{}
 
 
     if m := graphDevKey_regex.FindStringSubmatchIndex(s[s_pos:]); m != nil {
@@ -235,14 +235,14 @@ L1:for s_pos < len(s) {
       op = s[s_pos+m[4]:s_pos+m[5]]
       s_pos += m[6] //at least 1 symbol left in string
 
-      cmp_value, _ = dev.Vse(key)
+      cmp_value, _ = dev.VAe(key)
 
     } else if m := graphIntKey_regex.FindStringSubmatchIndex(s[s_pos:]); m != nil {
       key = s[s_pos+m[2]:s_pos+m[3]]
       op = s[s_pos+m[4]:s_pos+m[5]]
       s_pos += m[6] //at least 1 symbol left in string
 
-      cmp_value, _ = dev.Vse("interfaces", ifName, key)
+      cmp_value, _ = dev.VAe("interfaces", ifName, key)
 
     } else if m := graphDevNeKey_regex.FindStringSubmatchIndex(s[s_pos:]); m != nil {
       key = s[s_pos+m[2]:s_pos+m[3]]
@@ -332,11 +332,37 @@ L1:for s_pos < len(s) {
         }
       }
 
-      if op == "==" {
-        stack = append(stack, s[str_start:str_stop] == cmp_value)
-      } else {
-        stack = append(stack, s[str_start:str_stop] != cmp_value)
+      v := op != "=="
+      switch cmp_value.(type) {
+      case string,int,int8,int16,int32,int64,uint,uint8,uint16,uint32,uint64,bool,float32,float64:
+        if s[str_start:str_stop] == fmt.Sprint(cmp_value) {
+          v = op == "=="
+        }
+      case []string:
+        for _, sv := range cmp_value.([]string) {
+          if s[str_start:str_stop] == sv {
+            v = op == "=="
+            break
+          }
+        }
+      case []int64:
+        for _, sv := range cmp_value.([]int64) {
+          if s[str_start:str_stop] == fmt.Sprint(sv) {
+            v = op == "=="
+            break
+          }
+        }
+      case []uint64:
+        for _, sv := range cmp_value.([]uint64) {
+          if s[str_start:str_stop] == fmt.Sprint(sv) {
+            v = op == "=="
+            break
+          }
+        }
       }
+
+      stack = append(stack, v)
+
     } else if op == "=~" || op == "!~" {
       if s[s_pos] != '/' {
         return false, errors.New("Syntax error: no regex opening symbol \"/\" at "+strconv.Itoa(s_pos))
@@ -369,11 +395,38 @@ L1:for s_pos < len(s) {
       if reg, err := regexp.Compile("(?i:"+regex_pattern+")"); err != nil {
         return false, errors.New("Syntax error: regex compile error at "+strconv.Itoa(regex_start))
       } else {
-        if op == "=~" {
-          stack = append(stack, reg.MatchString(cmp_value))
-        } else {
-          stack = append(stack, !reg.MatchString(cmp_value))
+
+
+        v := op != "=~"
+        switch cmp_value.(type) {
+        case string,int,int8,int16,int32,int64,uint,uint8,uint16,uint32,uint64,bool,float32,float64:
+          if reg.MatchString(fmt.Sprint(cmp_value)) {
+            v = op == "=~"
+          }
+        case []string:
+          for _, sv := range cmp_value.([]string) {
+            if reg.MatchString(fmt.Sprint(sv)) {
+              v = op == "=~"
+              break
+            }
+          }
+        case []int64:
+          for _, sv := range cmp_value.([]int64) {
+            if reg.MatchString(fmt.Sprint(sv)) {
+              v = op == "=~"
+              break
+            }
+          }
+        case []uint64:
+          for _, sv := range cmp_value.([]uint64) {
+            if reg.MatchString(fmt.Sprint(sv)) {
+              v = op == "=~"
+              break
+            }
+          }
         }
+
+        stack = append(stack, v)
       }
     }
 
@@ -842,4 +895,25 @@ L1:for s_pos < len(s) {
 
   }
   return resolveStack(stack)
+}
+
+func AlertRuleFieldValue(v interface{}) string {
+  switch v.(type) {
+  case []string:
+    return strings.Join(v.([]string), ",")
+  case []int64:
+    str_a := make([]string, len(v.([]int64)))
+    for idx, val := range v.([]int64) { str_a[idx] = strconv.FormatInt(val, 10) }
+    return strings.Join(str_a, ",")
+  case []uint64:
+    str_a := make([]string, len(v.([]uint64)))
+    for idx, val := range v.([]uint64) { str_a[idx] = strconv.FormatUint(val, 10) }
+    return strings.Join(str_a, ",")
+  case []interface{}:
+    str_a := make([]string, len(v.([]interface{})))
+    for idx, val := range v.([]interface{}) { str_a[idx] = AlertRuleFieldValue(val) }
+    return strings.Join(str_a, ",")
+  default:
+    return fmt.Sprint(v)
+  }
 }
