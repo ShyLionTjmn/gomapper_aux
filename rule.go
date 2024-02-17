@@ -8,7 +8,7 @@ import (
   "fmt"
 
   w "github.com/jimlawless/whereami"
-  . "github.com/ShyLionTjmn/aux"
+  . "github.com/ShyLionTjmn/mapaux"
 )
 
 var graphDevKey_regex *regexp.Regexp
